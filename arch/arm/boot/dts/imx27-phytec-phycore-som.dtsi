@@ -51,7 +51,7 @@
 			compatible = "usb-nop-xceiv";
 			reg = <0>;
 			vcc-supply = <&sw3_reg>;
-			clocks = <&clks 0>;
+			clocks = <&clks IMX27_CLK_DUMMY>;
 			clock-names = "main_clk";
 		};
 	};
@@ -75,7 +75,6 @@
 &cspi1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_cspi1>;
-	fsl,spi-num-chipselects = <1>;
 	cs-gpios = <&gpio4 28 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 
@@ -310,7 +309,6 @@
 &ssi1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_ssi1>;
-	fsl,mode = "i2s-slave";
 	status = "okay";
 };
 

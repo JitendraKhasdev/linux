@@ -14,8 +14,9 @@ menuconfig ATA
 	tristate "Serial ATA and Parallel ATA drivers (libata)"
 	depends on HAS_IOMEM
 	depends on BLOCK
-	depends on !(M32R || M68K || S390) || BROKEN
+	depends on !(M32R || S390) || BROKEN
 	select SCSI
+	select GLOB
 	---help---
 	  If you want to use an ATA hard disk, ATA tape drive, ATA CD-ROM or
 	  any other ATA device under Linux, say Y and make sure that you know
@@ -47,7 +48,7 @@ config ATA_VERBOSE_ERROR
 
 config ATA_ACPI
 	bool "ATA ACPI Support"
-	depends on ACPI && PCI
+	depends on ACPI
 	default y
 	help
 	  This option adds support for ATA-related ACPI objects.
@@ -60,7 +61,7 @@ config ATA_ACPI
 
 config SATA_ZPODD
 	bool "SATA Zero Power Optical Disc Drive (ZPODD) support"
-	depends on ATA_ACPI && PM_RUNTIME
+	depends on ATA_ACPI && PM
 	default n
 	help
 	  This option adds support for SATA Zero Power Optical Disc
@@ -79,6 +80,8 @@ config SATA_PMP
 	  This option adds support for SATA Port Multipliers
 	  (the SATA version of an ethernet hub, or SAS expander).
 
+if HAS_DMA
+
 comment "Controllers with non-SFF native interface"
 
 config SATA_AHCI
@@ -94,6 +97,15 @@ config SATA_AHCI_PLATFORM
 	help
 	  This option enables support for Platform AHCI Serial ATA
 	  controllers.
+
+	  If unsure, say N.
+
+config AHCI_BRCM
+	tristate "Broadcom AHCI SATA support"
+	depends on ARCH_BRCMSTB || BMIPS_GENERIC || ARCH_BCM_NSP
+	help
+	  This option enables support for the AHCI SATA3 controller found on
+	  Broadcom SoC's.
 
 	  If unsure, say N.
 
@@ -117,9 +129,19 @@ config AHCI_ST
 config AHCI_IMX
 	tristate "Freescale i.MX AHCI SATA support"
 	depends on MFD_SYSCON && (ARCH_MXC || COMPILE_TEST)
+	depends on (HWMON && (THERMAL || !THERMAL_OF)) || !HWMON
 	help
 	  This option enables support for the Freescale i.MX SoC's
 	  onboard AHCI SATA.
+
+	  If unsure, say N.
+
+config AHCI_CEVA
+	tristate "CEVA AHCI SATA support"
+	depends on OF
+	help
+	  This option enables support for the CEVA AHCI SATA.
+	  It can be found on the Xilinx Zynq UltraScale+ MPSoC.
 
 	  If unsure, say N.
 
@@ -132,11 +154,29 @@ config AHCI_MVEBU
 
 	  If unsure, say N.
 
+config AHCI_OCTEON
+	tristate "Cavium Octeon Soc Serial ATA"
+	depends on SATA_AHCI_PLATFORM && CAVIUM_OCTEON_SOC
+	default y
+	help
+	  This option enables support for Cavium Octeon SoC Serial ATA.
+
+	  If unsure, say N.
+
 config AHCI_SUNXI
 	tristate "Allwinner sunxi AHCI SATA support"
 	depends on ARCH_SUNXI
 	help
 	  This option enables support for the Allwinner sunxi SoC's
+	  onboard AHCI SATA.
+
+	  If unsure, say N.
+
+config AHCI_TEGRA
+	tristate "NVIDIA Tegra124 AHCI SATA support"
+	depends on ARCH_TEGRA
+	help
+	  This option enables support for the NVIDIA Tegra124 SoC's
 	  onboard AHCI SATA.
 
 	  If unsure, say N.
@@ -147,6 +187,15 @@ config AHCI_XGENE
 	help
 	 This option enables support for APM X-Gene SoC SATA host controller.
 
+config AHCI_QORIQ
+	tristate "Freescale QorIQ AHCI SATA support"
+	depends on OF
+	help
+	  This option enables support for the Freescale QorIQ AHCI SoC's
+	  onboard AHCI SATA.
+
+	  If unsure, say N.
+
 config SATA_FSL
 	tristate "Freescale 3.0Gbps SATA support"
 	depends on FSL_SOC
@@ -155,6 +204,14 @@ config SATA_FSL
 	  It can be found on MPC837x and MPC8315.
 
 	  If unsure, say N.
+
+config SATA_AHCI_SEATTLE
+	tristate "AMD Seattle 6.0Gbps AHCI SATA host controller support"
+	depends on ARCH_SEATTLE
+	help
+	 This option enables support for AMD Seattle SATA host controller.
+
+	 If unsure, say N
 
 config SATA_INIC162X
 	tristate "Initio 162x SATA support (Very Experimental)"
@@ -177,6 +234,8 @@ config SATA_SIL24
 	  This option enables support for Silicon Image 3124/3132 Serial ATA.
 
 	  If unsure, say N.
+
+endif # HAS_DMA
 
 config ATA_SFF
 	bool "ATA SFF support (for legacy IDE and PATA)"
@@ -235,6 +294,7 @@ config SATA_SX4
 
 config ATA_BMDMA
 	bool "ATA BMDMA support"
+	depends on HAS_DMA
 	default y
 	help
 	  This option adds support for SFF ATA controllers with BMDMA
@@ -259,12 +319,22 @@ config ATA_PIIX
 
 config SATA_DWC
 	tristate "DesignWare Cores SATA support"
-	depends on 460EX
+	depends on DMADEVICES
+	select GENERIC_PHY
 	help
 	  This option enables support for the on-chip SATA controller of the
 	  AppliedMicro processor 460EX.
 
 	  If unsure, say N.
+
+config SATA_DWC_OLD_DMA
+	bool "Support old device trees"
+	depends on SATA_DWC
+	select DW_DMAC_CORE
+	default y if 460EX
+	help
+	  This option enables support for old device trees without the
+	  "dmas" property.
 
 config SATA_DWC_DEBUG
 	bool "Debugging driver version"
@@ -280,6 +350,7 @@ config SATA_DWC_VDEBUG
 
 config SATA_HIGHBANK
 	tristate "Calxeda Highbank SATA support"
+	depends on HAS_DMA
 	depends on ARCH_HIGHBANK || COMPILE_TEST
 	help
 	  This option enables support for the Calxeda Highbank SoC's
@@ -289,7 +360,8 @@ config SATA_HIGHBANK
 
 config SATA_MV
 	tristate "Marvell SATA support"
-	depends on PCI || ARCH_DOVE || ARCH_KIRKWOOD || ARCH_MV78XX0 || \
+	depends on HAS_DMA
+	depends on PCI || ARCH_DOVE || ARCH_MV78XX0 || \
 		   ARCH_MVEBU || ARCH_ORION5X || COMPILE_TEST
 	select GENERIC_PHY
 	help
@@ -317,7 +389,7 @@ config SATA_PROMISE
 
 config SATA_RCAR
 	tristate "Renesas R-Car SATA support"
-	depends on ARCH_SHMOBILE || COMPILE_TEST
+	depends on ARCH_RENESAS || COMPILE_TEST
 	help
 	  This option enables support for Renesas R-Car Serial ATA.
 
@@ -719,15 +791,6 @@ config PATA_SC1200
 
 	  If unsure, say N.
 
-config PATA_SCC
-	tristate "Toshiba's Cell Reference Set IDE support"
-	depends on PCI && PPC_CELLEB
-	help
-	  This option enables support for the built-in IDE controller on
-	  Toshiba Cell Reference Board.
-
-	  If unsure, say N.
-
 config PATA_SCH
 	tristate "Intel SCH PATA support"
 	depends on PCI
@@ -837,6 +900,15 @@ config PATA_CMD640_PCI
 	  This option enables support for the CMD640 PCI IDE
 	  interface chip. Only the primary channel is currently
 	  supported.
+
+	  If unsure, say N.
+
+config PATA_FALCON
+	tristate "Atari Falcon PATA support"
+	depends on M68K && ATARI
+	help
+	  This option enables support for the on-board IDE
+	  interface on the Atari Falcon.
 
 	  If unsure, say N.
 

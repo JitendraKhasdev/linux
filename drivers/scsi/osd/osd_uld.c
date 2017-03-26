@@ -10,7 +10,7 @@
  * Copyright (C) 2008 Panasas Inc.  All rights reserved.
  *
  * Authors:
- *   Boaz Harrosh <bharrosh@panasas.com>
+ *   Boaz Harrosh <ooo@electrozaur.com>
  *   Benny Halevy <bhalevy@panasas.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -74,7 +74,7 @@
 static const char osd_name[] = "osd";
 static const char *osd_version_string = "open-osd 0.2.1";
 
-MODULE_AUTHOR("Boaz Harrosh <bharrosh@panasas.com>");
+MODULE_AUTHOR("Boaz Harrosh <ooo@electrozaur.com>");
 MODULE_DESCRIPTION("open-osd Upper-Layer-Driver osd.ko");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS_CHARDEV_MAJOR(SCSI_OSD_MAJOR);
@@ -372,6 +372,7 @@ EXPORT_SYMBOL(osduld_device_same);
 static int __detect_osd(struct osd_uld_device *oud)
 {
 	struct scsi_device *scsi_device = oud->od.scsi_device;
+	struct scsi_sense_hdr sense_hdr;
 	char caps[OSD_CAP_LEN];
 	int error;
 
@@ -380,7 +381,7 @@ static int __detect_osd(struct osd_uld_device *oud)
 	 */
 	OSD_DEBUG("start scsi_test_unit_ready %p %p %p\n",
 			oud, scsi_device, scsi_device->request_queue);
-	error = scsi_test_unit_ready(scsi_device, 10*HZ, 5, NULL);
+	error = scsi_test_unit_ready(scsi_device, 10*HZ, 5, &sense_hdr);
 	if (error)
 		OSD_ERR("warning: scsi_test_unit_ready failed\n");
 
@@ -540,9 +541,9 @@ static int osd_remove(struct device *dev)
  */
 
 static struct scsi_driver osd_driver = {
-	.owner			= THIS_MODULE,
 	.gendrv = {
 		.name		= osd_name,
+		.owner		= THIS_MODULE,
 		.probe		= osd_probe,
 		.remove		= osd_remove,
 	}

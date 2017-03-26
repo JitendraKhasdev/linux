@@ -124,7 +124,7 @@ static int xfrm4_ah_rcv(struct sk_buff *skb)
 
 	for_each_protocol_rcu(ah4_handlers, handler)
 		if ((ret = handler->handler(skb)) != -EINVAL)
-			return ret;;
+			return ret;
 
 	icmp_send(skb, ICMP_DEST_UNREACH, ICMP_PORT_UNREACH, 0);
 
@@ -188,9 +188,8 @@ static const struct net_protocol ipcomp4_protocol = {
 	.netns_ok	=	1,
 };
 
-static struct xfrm_input_afinfo xfrm4_input_afinfo = {
+static const struct xfrm_input_afinfo xfrm4_input_afinfo = {
 	.family		=	AF_INET,
-	.owner		=	THIS_MODULE,
 	.callback	=	xfrm4_rcv_cb,
 };
 

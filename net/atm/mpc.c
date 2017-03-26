@@ -451,7 +451,7 @@ static void lane2_assoc_ind(struct net_device *dev, const u8 *mac_addr,
 			return;
 	}
 	if (end_of_tlvs - tlvs != 0)
-		pr_info("(%s) ignoring %Zd bytes of trailing TLV garbage\n",
+		pr_info("(%s) ignoring %zd bytes of trailing TLV garbage\n",
 			dev->name, end_of_tlvs - tlvs);
 }
 
@@ -599,7 +599,7 @@ static netdev_tx_t mpc_send_packet(struct sk_buff *skb,
 	}
 
 non_ip:
-	return mpc->old_ops->ndo_start_xmit(skb, dev);
+	return __netdev_start_xmit(mpc->old_ops, skb, dev, false);
 }
 
 static int atm_mpoa_vcc_attach(struct atm_vcc *vcc, void __user *arg)
@@ -1007,7 +1007,7 @@ static int mpoa_event_listener(struct notifier_block *mpoa_notifier,
 	if (!net_eq(dev_net(dev), &init_net))
 		return NOTIFY_DONE;
 
-	if (dev->name == NULL || strncmp(dev->name, "lec", 3))
+	if (strncmp(dev->name, "lec", 3))
 		return NOTIFY_DONE; /* we are only interested in lec:s */
 
 	switch (event) {

@@ -23,7 +23,7 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
-#include <linux/sched.h>
+#include <linux/sched/signal.h>
 #include <linux/adb.h>
 #include <linux/cuda.h>
 #include <linux/pmu.h>
@@ -48,7 +48,6 @@
 EXPORT_SYMBOL(adb_client_list);
 
 extern struct adb_driver via_macii_driver;
-extern struct adb_driver via_maciisi_driver;
 extern struct adb_driver via_cuda_driver;
 extern struct adb_driver adb_iop_driver;
 extern struct adb_driver via_pmu_driver;
@@ -58,9 +57,6 @@ static DEFINE_MUTEX(adb_mutex);
 static struct adb_driver *adb_driver_list[] = {
 #ifdef CONFIG_ADB_MACII
 	&via_macii_driver,
-#endif
-#ifdef CONFIG_ADB_MACIISI
-	&via_maciisi_driver,
 #endif
 #ifdef CONFIG_ADB_CUDA
 	&via_cuda_driver,
@@ -411,6 +407,7 @@ adb_poll(void)
 		return;
 	adb_controller->poll();
 }
+EXPORT_SYMBOL(adb_poll);
 
 static void adb_sync_req_done(struct adb_request *req)
 {
@@ -460,6 +457,7 @@ adb_request(struct adb_request *req, void (*done)(struct adb_request *),
 
 	return rc;
 }
+EXPORT_SYMBOL(adb_request);
 
  /* Ultimately this should return the number of devices with
     the given default id.
@@ -495,6 +493,7 @@ adb_register(int default_id, int handler_id, struct adb_ids *ids,
 	mutex_unlock(&adb_handler_mutex);
 	return ids->nids;
 }
+EXPORT_SYMBOL(adb_register);
 
 int
 adb_unregister(int index)
@@ -516,6 +515,7 @@ adb_unregister(int index)
 	mutex_unlock(&adb_handler_mutex);
 	return ret;
 }
+EXPORT_SYMBOL(adb_unregister);
 
 void
 adb_input(unsigned char *buf, int nb, int autopoll)
@@ -582,6 +582,7 @@ adb_try_handler_change(int address, int new_id)
 	mutex_unlock(&adb_handler_mutex);
 	return ret;
 }
+EXPORT_SYMBOL(adb_try_handler_change);
 
 int
 adb_get_infos(int address, int *original_address, int *handler_id)

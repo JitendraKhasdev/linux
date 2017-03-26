@@ -185,11 +185,6 @@ static void efm32_uart_stop_rx(struct uart_port *port)
 	efm32_uart_write32(efm_port, UARTn_CMD_RXDIS, UARTn_CMD);
 }
 
-static void efm32_uart_enable_ms(struct uart_port *port)
-{
-	/* no handshake lines, no modem status interrupts */
-}
-
 static void efm32_uart_break_ctl(struct uart_port *port, int ctl)
 {
 	/* not possible without fiddling with gpios */
@@ -492,14 +487,13 @@ static int efm32_uart_verify_port(struct uart_port *port,
 	return ret;
 }
 
-static struct uart_ops efm32_uart_pops = {
+static const struct uart_ops efm32_uart_pops = {
 	.tx_empty = efm32_uart_tx_empty,
 	.set_mctrl = efm32_uart_set_mctrl,
 	.get_mctrl = efm32_uart_get_mctrl,
 	.stop_tx = efm32_uart_stop_tx,
 	.start_tx = efm32_uart_start_tx,
 	.stop_rx = efm32_uart_stop_rx,
-	.enable_ms = efm32_uart_enable_ms,
 	.break_ctl = efm32_uart_break_ctl,
 	.startup = efm32_uart_startup,
 	.shutdown = efm32_uart_shutdown,
@@ -671,10 +665,16 @@ static int efm32_uart_probe_dt(struct platform_device *pdev,
 	if (!np)
 		return 1;
 
-	ret = of_property_read_u32(np, "efm32,location", &location);
+	ret = of_property_read_u32(np, "energymicro,location", &location);
+
+	if (ret)
+		/* fall back to wrongly namespaced property */
+		ret = of_property_read_u32(np, "efm32,location", &location);
+
 	if (ret)
 		/* fall back to old and (wrongly) generic property "location" */
 		ret = of_property_read_u32(np, "location", &location);
+
 	if (!ret) {
 		if (location > 5) {
 			dev_err(&pdev->dev, "invalid location\n");
@@ -814,7 +814,6 @@ static struct platform_driver efm32_uart_driver = {
 
 	.driver = {
 		.name = DRIVER_NAME,
-		.owner = THIS_MODULE,
 		.of_match_table = efm32_uart_dt_ids,
 	},
 };

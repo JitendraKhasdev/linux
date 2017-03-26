@@ -1,7 +1,7 @@
 /*
  * shmob_drm_plane.c  --  SH Mobile DRM Planes
  *
- * Copyright (C) 2012 Renesas Corporation
+ * Copyright (C) 2012 Renesas Electronics Corporation
  *
  * Laurent Pinchart (laurent.pinchart@ideasonboard.com)
  *
@@ -183,10 +183,10 @@ shmob_drm_plane_update(struct drm_plane *plane, struct drm_crtc *crtc,
 	struct shmob_drm_device *sdev = plane->dev->dev_private;
 	const struct shmob_drm_format_info *format;
 
-	format = shmob_drm_format_info(fb->pixel_format);
+	format = shmob_drm_format_info(fb->format->format);
 	if (format == NULL) {
 		dev_dbg(sdev->dev, "update_plane: unsupported format %08x\n",
-			fb->pixel_format);
+			fb->format->format);
 		return -EINVAL;
 	}
 

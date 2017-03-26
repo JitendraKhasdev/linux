@@ -3,6 +3,11 @@
  *
  * Copyright 2010-2014 Imagination Technologies Ltd.
  *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; either version 2 of the License, or (at your
+ * option) any later version.
+ *
  * This ties into the input subsystem using the RC-core in raw mode. Raw IR
  * signal edges are reported and decoded by generic software decoders.
  */
@@ -105,7 +110,7 @@ int img_ir_probe_raw(struct img_ir_priv *priv)
 	setup_timer(&raw->timer, img_ir_echo_timer, (unsigned long)priv);
 
 	/* Allocate raw decoder */
-	raw->rdev = rdev = rc_allocate_device();
+	raw->rdev = rdev = rc_allocate_device(RC_DRIVER_IR_RAW);
 	if (!rdev) {
 		dev_err(priv->dev, "cannot allocate raw input device\n");
 		return -ENOMEM;
@@ -113,7 +118,6 @@ int img_ir_probe_raw(struct img_ir_priv *priv)
 	rdev->priv = priv;
 	rdev->map_name = RC_MAP_EMPTY;
 	rdev->input_name = "IMG Infrared Decoder Raw";
-	rdev->driver_type = RC_DRIVER_IR_RAW;
 
 	/* Register raw decoder */
 	error = rc_register_device(rdev);

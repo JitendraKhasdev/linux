@@ -48,6 +48,8 @@ unsigned long safe_compute_effective_address(struct pt_regs *, unsigned int);
 #endif
 
 #ifdef CONFIG_SPARC64
+void __init start_early_boot(void);
+
 /* unaligned_64.c */
 int handle_ldf_stq(u32 insn, struct pt_regs *regs);
 void handle_ld_nf(u32 insn, struct pt_regs *regs);
@@ -57,8 +59,11 @@ extern atomic_t dcpage_flushes;
 extern atomic_t dcpage_flushes_xcall;
 
 extern int sysctl_tsb_ratio;
-#endif
 
+#ifdef CONFIG_SERIAL_SUNHV
+void sunhv_migrate_hvcons_irq(int cpu);
+#endif
+#endif
 void sun_do_break(void);
 extern int stop_a_enabled;
 extern int scons_pwroff;

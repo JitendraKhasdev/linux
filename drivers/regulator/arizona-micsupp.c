@@ -45,6 +45,7 @@ static void arizona_micsupp_check_cp(struct work_struct *work)
 	struct arizona_micsupp *micsupp =
 		container_of(work, struct arizona_micsupp, check_cp_work);
 	struct snd_soc_dapm_context *dapm = micsupp->arizona->dapm;
+	struct snd_soc_component *component = snd_soc_dapm_to_component(dapm);
 	struct arizona *arizona = micsupp->arizona;
 	struct regmap *regmap = arizona->regmap;
 	unsigned int reg;
@@ -59,9 +60,10 @@ static void arizona_micsupp_check_cp(struct work_struct *work)
 	if (dapm) {
 		if ((reg & (ARIZONA_CPMIC_ENA | ARIZONA_CPMIC_BYPASS)) ==
 		    ARIZONA_CPMIC_ENA)
-			snd_soc_dapm_force_enable_pin(dapm, "MICSUPP");
+			snd_soc_component_force_enable_pin(component,
+							   "MICSUPP");
 		else
-			snd_soc_dapm_disable_pin(dapm, "MICSUPP");
+			snd_soc_component_disable_pin(component, "MICSUPP");
 
 		snd_soc_dapm_sync(dapm);
 	}
@@ -104,7 +106,7 @@ static int arizona_micsupp_set_bypass(struct regulator_dev *rdev, bool ena)
 	return ret;
 }
 
-static struct regulator_ops arizona_micsupp_ops = {
+static const struct regulator_ops arizona_micsupp_ops = {
 	.enable = arizona_micsupp_enable,
 	.disable = arizona_micsupp_disable,
 	.is_enabled = regulator_is_enabled_regmap,
@@ -198,7 +200,8 @@ static const struct regulator_init_data arizona_micsupp_ext_default = {
 };
 
 static int arizona_micsupp_of_get_pdata(struct arizona *arizona,
-					struct regulator_config *config)
+					struct regulator_config *config,
+					const struct regulator_desc *desc)
 {
 	struct arizona_pdata *pdata = &arizona->pdata;
 	struct arizona_micsupp *micsupp = config->driver_data;
@@ -210,7 +213,7 @@ static int arizona_micsupp_of_get_pdata(struct arizona *arizona,
 	if (np) {
 		config->of_node = np;
 
-		init_data = of_get_regulator_init_data(arizona->dev, np);
+		init_data = of_get_regulator_init_data(arizona->dev, np, desc);
 
 		if (init_data) {
 			init_data->consumer_supplies = &micsupp->supply;
@@ -245,6 +248,7 @@ static int arizona_micsupp_probe(struct platform_device *pdev)
 	 */
 	switch (arizona->type) {
 	case WM5110:
+	case WM8280:
 		desc = &arizona_micsupp_ext;
 		micsupp->init_data = arizona_micsupp_ext_default;
 		break;
@@ -264,7 +268,8 @@ static int arizona_micsupp_probe(struct platform_device *pdev)
 
 	if (IS_ENABLED(CONFIG_OF)) {
 		if (!dev_get_platdata(arizona->dev)) {
-			ret = arizona_micsupp_of_get_pdata(arizona, &config);
+			ret = arizona_micsupp_of_get_pdata(arizona, &config,
+							   desc);
 			if (ret < 0)
 				return ret;
 		}
@@ -282,14 +287,15 @@ static int arizona_micsupp_probe(struct platform_device *pdev)
 	micsupp->regulator = devm_regulator_register(&pdev->dev,
 						     desc,
 						     &config);
+
+	of_node_put(config.of_node);
+
 	if (IS_ERR(micsupp->regulator)) {
 		ret = PTR_ERR(micsupp->regulator);
 		dev_err(arizona->dev, "Failed to register mic supply: %d\n",
 			ret);
 		return ret;
 	}
-
-	of_node_put(config.of_node);
 
 	platform_set_drvdata(pdev, micsupp);
 
@@ -300,7 +306,6 @@ static struct platform_driver arizona_micsupp_driver = {
 	.probe = arizona_micsupp_probe,
 	.driver		= {
 		.name	= "arizona-micsupp",
-		.owner	= THIS_MODULE,
 	},
 };
 

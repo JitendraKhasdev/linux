@@ -17,10 +17,6 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  *  General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  59 Temple Place, Suite 330, Boston, MA 02111-1307 USA.
- *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
 
@@ -60,7 +56,7 @@ struct acpi_ipmi_device {
 struct ipmi_driver_data {
 	struct list_head ipmi_devices;
 	struct ipmi_smi_watcher bmc_events;
-	struct ipmi_user_hndl ipmi_hndlrs;
+	const struct ipmi_user_hndl ipmi_hndlrs;
 	struct mutex ipmi_lock;
 
 	/*

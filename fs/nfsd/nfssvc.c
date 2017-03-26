@@ -6,7 +6,7 @@
  * Copyright (C) 1995, 1996, 1997 Olaf Kirch <okir@monad.swb.de>
  */
 
-#include <linux/sched.h>
+#include <linux/sched/signal.h>
 #include <linux/freezer.h>
 #include <linux/module.h>
 #include <linux/fs_struct.h>
@@ -14,9 +14,13 @@
 
 #include <linux/sunrpc/stats.h>
 #include <linux/sunrpc/svcsock.h>
+#include <linux/sunrpc/svc_xprt.h>
 #include <linux/lockd/bind.h>
 #include <linux/nfsacl.h>
 #include <linux/seq_file.h>
+#include <linux/inetdevice.h>
+#include <net/addrconf.h>
+#include <net/ipv6.h>
 #include <net/net_namespace.h>
 #include "nfsd.h"
 #include "cache.h"
@@ -119,6 +123,7 @@ struct svc_program		nfsd_program = {
 static bool nfsd_supported_minorversions[NFSD_SUPPORTED_MINOR_VERSION + 1] = {
 	[0] = 1,
 	[1] = 1,
+	[2] = 1,
 };
 
 int nfsd_vers(int vers, enum vers_op change)
@@ -148,6 +153,18 @@ int nfsd_vers(int vers, enum vers_op change)
 	return 0;
 }
 
+static void
+nfsd_adjust_nfsd_versions4(void)
+{
+	unsigned i;
+
+	for (i = 0; i <= NFSD_SUPPORTED_MINOR_VERSION; i++) {
+		if (nfsd_supported_minorversions[i])
+			return;
+	}
+	nfsd_vers(4, NFSD_CLEAR);
+}
+
 int nfsd_minorversion(u32 minorversion, enum vers_op change)
 {
 	if (minorversion > NFSD_SUPPORTED_MINOR_VERSION)
@@ -155,9 +172,11 @@ int nfsd_minorversion(u32 minorversion, enum vers_op change)
 	switch(change) {
 	case NFSD_SET:
 		nfsd_supported_minorversions[minorversion] = true;
+		nfsd_vers(4, NFSD_SET);
 		break;
 	case NFSD_CLEAR:
 		nfsd_supported_minorversions[minorversion] = false;
+		nfsd_adjust_nfsd_versions4();
 		break;
 	case NFSD_TEST:
 		return nfsd_supported_minorversions[minorversion];
@@ -221,7 +240,8 @@ static int nfsd_startup_generic(int nrservs)
 	 */
 	ret = nfsd_racache_init(2*nrservs);
 	if (ret)
-		return ret;
+		goto dec_users;
+
 	ret = nfs4_state_start();
 	if (ret)
 		goto out_racache;
@@ -229,6 +249,8 @@ static int nfsd_startup_generic(int nrservs)
 
 out_racache:
 	nfsd_racache_shutdown();
+dec_users:
+	nfsd_users--;
 	return ret;
 }
 
@@ -302,22 +324,90 @@ static void nfsd_shutdown_net(struct net *net)
 	nfsd_shutdown_generic();
 }
 
+static int nfsd_inetaddr_event(struct notifier_block *this, unsigned long event,
+	void *ptr)
+{
+	struct in_ifaddr *ifa = (struct in_ifaddr *)ptr;
+	struct net_device *dev = ifa->ifa_dev->dev;
+	struct net *net = dev_net(dev);
+	struct nfsd_net *nn = net_generic(net, nfsd_net_id);
+	struct sockaddr_in sin;
+
+	if (event != NETDEV_DOWN)
+		goto out;
+
+	if (nn->nfsd_serv) {
+		dprintk("nfsd_inetaddr_event: removed %pI4\n", &ifa->ifa_local);
+		sin.sin_family = AF_INET;
+		sin.sin_addr.s_addr = ifa->ifa_local;
+		svc_age_temp_xprts_now(nn->nfsd_serv, (struct sockaddr *)&sin);
+	}
+
+out:
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block nfsd_inetaddr_notifier = {
+	.notifier_call = nfsd_inetaddr_event,
+};
+
+#if IS_ENABLED(CONFIG_IPV6)
+static int nfsd_inet6addr_event(struct notifier_block *this,
+	unsigned long event, void *ptr)
+{
+	struct inet6_ifaddr *ifa = (struct inet6_ifaddr *)ptr;
+	struct net_device *dev = ifa->idev->dev;
+	struct net *net = dev_net(dev);
+	struct nfsd_net *nn = net_generic(net, nfsd_net_id);
+	struct sockaddr_in6 sin6;
+
+	if (event != NETDEV_DOWN)
+		goto out;
+
+	if (nn->nfsd_serv) {
+		dprintk("nfsd_inet6addr_event: removed %pI6\n", &ifa->addr);
+		sin6.sin6_family = AF_INET6;
+		sin6.sin6_addr = ifa->addr;
+		if (ipv6_addr_type(&sin6.sin6_addr) & IPV6_ADDR_LINKLOCAL)
+			sin6.sin6_scope_id = ifa->idev->dev->ifindex;
+		svc_age_temp_xprts_now(nn->nfsd_serv, (struct sockaddr *)&sin6);
+	}
+
+out:
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block nfsd_inet6addr_notifier = {
+	.notifier_call = nfsd_inet6addr_event,
+};
+#endif
+
+/* Only used under nfsd_mutex, so this atomic may be overkill: */
+static atomic_t nfsd_notifier_refcount = ATOMIC_INIT(0);
+
 static void nfsd_last_thread(struct svc_serv *serv, struct net *net)
 {
 	struct nfsd_net *nn = net_generic(net, nfsd_net_id);
+
+	/* check if the notifier still has clients */
+	if (atomic_dec_return(&nfsd_notifier_refcount) == 0) {
+		unregister_inetaddr_notifier(&nfsd_inetaddr_notifier);
+#if IS_ENABLED(CONFIG_IPV6)
+		unregister_inet6addr_notifier(&nfsd_inet6addr_notifier);
+#endif
+	}
 
 	/*
 	 * write_ports can create the server without actually starting
 	 * any threads--if we get shut down before any threads are
 	 * started, then nfsd_last_thread will be run before any of this
-	 * other initialization has been done.
+	 * other initialization has been done except the rpcb information.
 	 */
+	svc_rpcb_cleanup(serv, net);
 	if (!nn->nfsd_net_up)
 		return;
+
 	nfsd_shutdown_net(net);
-
-	svc_rpcb_cleanup(serv, net);
-
 	printk(KERN_WARNING "nfsd: last server has exited, flushing export "
 			    "cache\n");
 	nfsd_export_flush(net);
@@ -387,6 +477,14 @@ static int nfsd_get_default_max_blksize(void)
 	return ret;
 }
 
+static struct svc_serv_ops nfsd_thread_sv_ops = {
+	.svo_shutdown		= nfsd_last_thread,
+	.svo_function		= nfsd,
+	.svo_enqueue_xprt	= svc_xprt_do_enqueue,
+	.svo_setup		= svc_set_num_threads,
+	.svo_module		= THIS_MODULE,
+};
+
 int nfsd_create_serv(struct net *net)
 {
 	int error;
@@ -401,10 +499,11 @@ int nfsd_create_serv(struct net *net)
 		nfsd_max_blksize = nfsd_get_default_max_blksize();
 	nfsd_reset_versions();
 	nn->nfsd_serv = svc_create_pooled(&nfsd_program, nfsd_max_blksize,
-				      nfsd_last_thread, nfsd, THIS_MODULE);
+						&nfsd_thread_sv_ops);
 	if (nn->nfsd_serv == NULL)
 		return -ENOMEM;
 
+	nn->nfsd_serv->sv_maxconn = nn->max_connections;
 	error = svc_bind(nn->nfsd_serv, net);
 	if (error < 0) {
 		svc_destroy(nn->nfsd_serv);
@@ -412,6 +511,13 @@ int nfsd_create_serv(struct net *net)
 	}
 
 	set_max_drc();
+	/* check if the notifier is already set */
+	if (atomic_inc_return(&nfsd_notifier_refcount) == 1) {
+		register_inetaddr_notifier(&nfsd_inetaddr_notifier);
+#if IS_ENABLED(CONFIG_IPV6)
+		register_inet6addr_notifier(&nfsd_inet6addr_notifier);
+#endif
+	}
 	do_gettimeofday(&nn->nfssvc_boot);		/* record boot time */
 	return 0;
 }
@@ -469,8 +575,7 @@ int nfsd_set_nrthreads(int n, int *nthreads, struct net *net)
 	/* enforce a global maximum number of threads */
 	tot = 0;
 	for (i = 0; i < n; i++) {
-		if (nthreads[i] > NFSD_MAXSERVS)
-			nthreads[i] = NFSD_MAXSERVS;
+		nthreads[i] = min(nthreads[i], NFSD_MAXSERVS);
 		tot += nthreads[i];
 	}
 	if (tot > NFSD_MAXSERVS) {
@@ -496,8 +601,8 @@ int nfsd_set_nrthreads(int n, int *nthreads, struct net *net)
 	/* apply the new numbers */
 	svc_get(nn->nfsd_serv);
 	for (i = 0; i < n; i++) {
-		err = svc_set_num_threads(nn->nfsd_serv, &nn->nfsd_serv->sv_pools[i],
-				    	  nthreads[i]);
+		err = nn->nfsd_serv->sv_ops->svo_setup(nn->nfsd_serv,
+				&nn->nfsd_serv->sv_pools[i], nthreads[i]);
 		if (err)
 			break;
 	}
@@ -519,11 +624,11 @@ nfsd_svc(int nrservs, struct net *net)
 
 	mutex_lock(&nfsd_mutex);
 	dprintk("nfsd: creating service\n");
-	if (nrservs <= 0)
-		nrservs = 0;
-	if (nrservs > NFSD_MAXSERVS)
-		nrservs = NFSD_MAXSERVS;
+
+	nrservs = max(nrservs, 0);
+	nrservs = min(nrservs, NFSD_MAXSERVS);
 	error = 0;
+
 	if (nrservs == 0 && nn->nfsd_serv == NULL)
 		goto out;
 
@@ -536,7 +641,8 @@ nfsd_svc(int nrservs, struct net *net)
 	error = nfsd_startup_net(nrservs, net);
 	if (error)
 		goto out_destroy;
-	error = svc_set_num_threads(nn->nfsd_serv, NULL, nrservs);
+	error = nn->nfsd_serv->sv_ops->svo_setup(nn->nfsd_serv,
+			NULL, nrservs);
 	if (error)
 		goto out_shutdown;
 	/* We are holding a reference to nn->nfsd_serv which
@@ -564,14 +670,15 @@ nfsd(void *vrqstp)
 	struct svc_rqst *rqstp = (struct svc_rqst *) vrqstp;
 	struct svc_xprt *perm_sock = list_entry(rqstp->rq_server->sv_permsocks.next, typeof(struct svc_xprt), xpt_list);
 	struct net *net = perm_sock->xpt_net;
+	struct nfsd_net *nn = net_generic(net, nfsd_net_id);
 	int err;
 
 	/* Lock module and set up kernel thread */
 	mutex_lock(&nfsd_mutex);
 
 	/* At this point, the thread shares current->fs
-	 * with the init process. We need to create files with a
-	 * umask of 0 instead of init's umask. */
+	 * with the init process. We need to create files with the
+	 * umask as defined by the client instead of init's umask. */
 	if (unshare_fs_struct() < 0) {
 		printk("Unable to start nfsd thread: out of memory\n");
 		goto out;
@@ -597,6 +704,9 @@ nfsd(void *vrqstp)
 	 * The main request loop
 	 */
 	for (;;) {
+		/* Update sv_maxconn if it has changed */
+		rqstp->rq_server->sv_maxconn = nn->max_connections;
+
 		/*
 		 * Find a socket with data available and call its
 		 * recvfrom routine.
@@ -685,7 +795,7 @@ nfsd_dispatch(struct svc_rqst *rqstp, __be32 *statp)
 	/* Now call the procedure handler, and encode NFS status. */
 	nfserr = proc->pc_func(rqstp, rqstp->rq_argp, rqstp->rq_resp);
 	nfserr = map_new_errors(rqstp->rq_vers, nfserr);
-	if (nfserr == nfserr_dropit || rqstp->rq_dropme) {
+	if (nfserr == nfserr_dropit || test_bit(RQ_DROPME, &rqstp->rq_flags)) {
 		dprintk("nfsd: Dropping request; may be revisited later\n");
 		nfsd_cache_update(rqstp, RC_NOCACHE, NULL);
 		return 0;

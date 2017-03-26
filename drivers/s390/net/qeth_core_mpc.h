@@ -92,6 +92,7 @@ enum qeth_ipa_cmds {
 	IPA_CMD_DELGMAC			= 0x24,
 	IPA_CMD_SETVLAN			= 0x25,
 	IPA_CMD_DELVLAN			= 0x26,
+	IPA_CMD_SETBRIDGEPORT_OSA	= 0x2b,
 	IPA_CMD_SETCCID			= 0x41,
 	IPA_CMD_DELCCID			= 0x42,
 	IPA_CMD_MODCCID			= 0x43,
@@ -104,7 +105,7 @@ enum qeth_ipa_cmds {
 	IPA_CMD_DELIP			= 0xb7,
 	IPA_CMD_SETADAPTERPARMS		= 0xb8,
 	IPA_CMD_SET_DIAG_ASS		= 0xb9,
-	IPA_CMD_SETBRIDGEPORT		= 0xbe,
+	IPA_CMD_SETBRIDGEPORT_IQD	= 0xbe,
 	IPA_CMD_CREATE_ADDR		= 0xc3,
 	IPA_CMD_DESTROY_ADDR		= 0xc4,
 	IPA_CMD_REGISTER_LOCAL_ADDR	= 0xd1,
@@ -242,6 +243,7 @@ enum qeth_ipa_setadp_cmd {
 	IPA_SETADP_SET_DIAG_ASSIST		= 0x00002000L,
 	IPA_SETADP_SET_ACCESS_CONTROL		= 0x00010000L,
 	IPA_SETADP_QUERY_OAT			= 0x00080000L,
+	IPA_SETADP_QUERY_SWITCH_ATTRIBUTES	= 0x00100000L,
 };
 enum qeth_ipa_mac_ops {
 	CHANGE_ADDR_READ_MAC		= 0,
@@ -350,11 +352,28 @@ struct qeth_arp_query_info {
 	char *udata;
 };
 
+/* IPA set assist segmentation bit definitions for receive and
+ * transmit checksum offloading.
+ */
+enum qeth_ipa_checksum_bits {
+	QETH_IPA_CHECKSUM_IP_HDR	= 0x0002,
+	QETH_IPA_CHECKSUM_UDP		= 0x0008,
+	QETH_IPA_CHECKSUM_TCP		= 0x0010,
+	QETH_IPA_CHECKSUM_LP2LP		= 0x0020
+};
+
+/* IPA Assist checksum offload reply layout. */
+struct qeth_checksum_cmd {
+	__u32 supported;
+	__u32 enabled;
+} __packed;
+
 /* SETASSPARMS IPA Command: */
 struct qeth_ipacmd_setassparms {
 	struct qeth_ipacmd_setassparms_hdr hdr;
 	union {
 		__u32 flags_32bit;
+		struct qeth_checksum_cmd chksum;
 		struct qeth_arp_cache_entry add_arp_entry;
 		struct qeth_arp_query_data query_arp;
 		__u8 ip[16];
@@ -431,6 +450,21 @@ struct qeth_query_card_info {
 	__u32	reserved2;
 };
 
+#define QETH_SWITCH_FORW_802_1		0x00000001
+#define QETH_SWITCH_FORW_REFL_RELAY	0x00000002
+#define QETH_SWITCH_CAP_RTE		0x00000004
+#define QETH_SWITCH_CAP_ECP		0x00000008
+#define QETH_SWITCH_CAP_VDP		0x00000010
+
+struct qeth_query_switch_attributes {
+	__u8  version;
+	__u8  reserved1;
+	__u16 reserved2;
+	__u32 capabilities;
+	__u32 settings;
+	__u8  reserved3[8];
+};
+
 struct qeth_ipacmd_setadpparms_hdr {
 	__u32 supp_hw_cmds;
 	__u32 reserved1;
@@ -452,6 +486,7 @@ struct qeth_ipacmd_setadpparms {
 		struct qeth_set_access_ctrl set_access_ctrl;
 		struct qeth_query_oat query_oat;
 		struct qeth_query_card_info card_info;
+		struct qeth_query_switch_attributes query_switch_attributes;
 		__u32 mode;
 	} data;
 } __attribute__ ((packed));

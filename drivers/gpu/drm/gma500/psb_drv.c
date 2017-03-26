@@ -54,7 +54,7 @@ static int psb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent);
  * PowerVR SGX545    - Cedartrail - Intel GMA 3650, Intel Atom D2550, D2700,
  *                                  N2800
  */
-static DEFINE_PCI_DEVICE_TABLE(pciidlist) = {
+static const struct pci_device_id pciidlist[] = {
 	{ 0x8086, 0x8108, PCI_ANY_ID, PCI_ANY_ID, 0, 0, (long) &psb_chip_ops },
 	{ 0x8086, 0x8109, PCI_ANY_ID, PCI_ANY_ID, 0, 0, (long) &psb_chip_ops },
 #if defined(CONFIG_DRM_GMA600)
@@ -159,7 +159,7 @@ static int psb_do_init(struct drm_device *dev)
 	return 0;
 }
 
-static int psb_driver_unload(struct drm_device *dev)
+static void psb_driver_unload(struct drm_device *dev)
 {
 	struct drm_psb_private *dev_priv = dev->dev_private;
 
@@ -210,8 +210,8 @@ static int psb_driver_unload(struct drm_device *dev)
 			iounmap(dev_priv->aux_reg);
 			dev_priv->aux_reg = NULL;
 		}
-		if (dev_priv->aux_pdev)
-			pci_dev_put(dev_priv->aux_pdev);
+		pci_dev_put(dev_priv->aux_pdev);
+		pci_dev_put(dev_priv->lpc_pdev);
 
 		/* Destroy VBT data */
 		psb_intel_destroy_bios(dev);
@@ -220,7 +220,6 @@ static int psb_driver_unload(struct drm_device *dev)
 		dev->dev_private = NULL;
 	}
 	gma_power_uninit(dev);
-	return 0;
 }
 
 static int psb_driver_load(struct drm_device *dev, unsigned long flags)
@@ -280,6 +279,24 @@ static int psb_driver_load(struct drm_device *dev, unsigned long flags)
 			DRM_DEBUG_KMS("Couldn't find aux pci device");
 		}
 		dev_priv->gmbus_reg = dev_priv->aux_reg;
+
+		dev_priv->lpc_pdev = pci_get_bus_and_slot(0, PCI_DEVFN(31, 0));
+		if (dev_priv->lpc_pdev) {
+			pci_read_config_word(dev_priv->lpc_pdev, PSB_LPC_GBA,
+				&dev_priv->lpc_gpio_base);
+			pci_write_config_dword(dev_priv->lpc_pdev, PSB_LPC_GBA,
+				(u32)dev_priv->lpc_gpio_base | (1L<<31));
+			pci_read_config_word(dev_priv->lpc_pdev, PSB_LPC_GBA,
+				&dev_priv->lpc_gpio_base);
+			dev_priv->lpc_gpio_base &= 0xffc0;
+			if (dev_priv->lpc_gpio_base)
+				DRM_DEBUG_KMS("Found LPC GPIO at 0x%04x\n",
+						dev_priv->lpc_gpio_base);
+			else {
+				pci_dev_put(dev_priv->lpc_pdev);
+				dev_priv->lpc_pdev = NULL;
+			}
+		}
 	} else {
 		dev_priv->gmbus_reg = dev_priv->vdc_reg;
 	}
@@ -354,7 +371,6 @@ static int psb_driver_load(struct drm_device *dev, unsigned long flags)
 
 	drm_irq_install(dev, dev->pdev->irq);
 
-	dev->vblank_disable_allowed = true;
 	dev->max_vblank_count = 0xffffff; /* only 24 bits of frame count */
 	dev->driver->get_vblank_counter = psb_get_vblank_counter;
 
@@ -390,11 +406,6 @@ out_err:
 	return ret;
 }
 
-static int psb_driver_device_is_agp(struct drm_device *dev)
-{
-	return 0;
-}
-
 static inline void get_brightness(struct backlight_device *bd)
 {
 #ifdef CONFIG_BACKLIGHT_CLASS_DEVICE
@@ -420,14 +431,6 @@ static long psb_unlocked_ioctl(struct file *filp, unsigned int cmd,
 	}
 	return drm_ioctl(filp, cmd, arg);
 	/* FIXME: do we need to wrap the other side of this */
-}
-
-/*
- * When a client dies:
- *    - Check for and clean up flipped page state
- */
-static void psb_driver_preclose(struct drm_device *dev, struct drm_file *priv)
-{
 }
 
 static int psb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
@@ -464,6 +467,7 @@ static const struct file_operations psb_gem_fops = {
 	.open = drm_open,
 	.release = drm_release,
 	.unlocked_ioctl = psb_unlocked_ioctl,
+	.compat_ioctl = drm_compat_ioctl,
 	.mmap = drm_gem_mmap,
 	.poll = drm_poll,
 	.read = drm_read,
@@ -475,10 +479,9 @@ static struct drm_driver driver = {
 	.load = psb_driver_load,
 	.unload = psb_driver_unload,
 	.lastclose = psb_driver_lastclose,
-	.preclose = psb_driver_preclose,
+	.set_busid = drm_pci_set_busid,
 
 	.num_ioctls = ARRAY_SIZE(psb_ioctls),
-	.device_is_agp = psb_driver_device_is_agp,
 	.irq_preinstall = psb_irq_preinstall,
 	.irq_postinstall = psb_irq_postinstall,
 	.irq_uninstall = psb_irq_uninstall,

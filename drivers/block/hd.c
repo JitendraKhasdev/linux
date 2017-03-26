@@ -45,7 +45,7 @@
 
 #define REALLY_SLOW_IO
 #include <asm/io.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #ifdef __arm__
 #undef  HD_IRQ
@@ -626,30 +626,29 @@ repeat:
 		req_data_dir(req) == READ ? "read" : "writ",
 		cyl, head, sec, nsect, bio_data(req->bio));
 #endif
-	if (req->cmd_type == REQ_TYPE_FS) {
-		switch (rq_data_dir(req)) {
-		case READ:
-			hd_out(disk, nsect, sec, head, cyl, ATA_CMD_PIO_READ,
-				&read_intr);
-			if (reset)
-				goto repeat;
-			break;
-		case WRITE:
-			hd_out(disk, nsect, sec, head, cyl, ATA_CMD_PIO_WRITE,
-				&write_intr);
-			if (reset)
-				goto repeat;
-			if (wait_DRQ()) {
-				bad_rw_intr();
-				goto repeat;
-			}
-			outsw(HD_DATA, bio_data(req->bio), 256);
-			break;
-		default:
-			printk("unknown hd-command\n");
-			hd_end_request_cur(-EIO);
-			break;
+
+	switch (req_op(req)) {
+	case REQ_OP_READ:
+		hd_out(disk, nsect, sec, head, cyl, ATA_CMD_PIO_READ,
+			&read_intr);
+		if (reset)
+			goto repeat;
+		break;
+	case REQ_OP_WRITE:
+		hd_out(disk, nsect, sec, head, cyl, ATA_CMD_PIO_WRITE,
+			&write_intr);
+		if (reset)
+			goto repeat;
+		if (wait_DRQ()) {
+			bad_rw_intr();
+			goto repeat;
 		}
+		outsw(HD_DATA, bio_data(req->bio), 256);
+		break;
+	default:
+		printk("unknown hd-command\n");
+		hd_end_request_cur(-EIO);
+		break;
 	}
 }
 
@@ -693,16 +692,6 @@ static irqreturn_t hd_interrupt(int irq, void *dev_id)
 static const struct block_device_operations hd_fops = {
 	.getgeo =	hd_getgeo,
 };
-
-/*
- * This is the hard disk IRQ description. The IRQF_DISABLED in sa_flags
- * means we run the IRQ-handler with interrupts disabled:  this is bad for
- * interrupt latency, but anything else has led to problems on some
- * machines.
- *
- * We enable interrupts in some of the routines after making sure it's
- * safe.
- */
 
 static int __init hd_init(void)
 {
@@ -761,7 +750,7 @@ static int __init hd_init(void)
 			p->cyl, p->head, p->sect);
 	}
 
-	if (request_irq(HD_IRQ, hd_interrupt, IRQF_DISABLED, "hd", NULL)) {
+	if (request_irq(HD_IRQ, hd_interrupt, 0, "hd", NULL)) {
 		printk("hd: unable to get IRQ%d for the hard disk driver\n",
 			HD_IRQ);
 		goto out1;

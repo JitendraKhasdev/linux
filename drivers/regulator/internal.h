@@ -35,4 +35,30 @@ struct regulator {
 	struct dentry *debugfs;
 };
 
+#ifdef CONFIG_OF
+struct regulator_init_data *regulator_of_get_init_data(struct device *dev,
+			         const struct regulator_desc *desc,
+				 struct regulator_config *config,
+				 struct device_node **node);
+#else
+static inline struct regulator_init_data *
+regulator_of_get_init_data(struct device *dev,
+			   const struct regulator_desc *desc,
+			   struct regulator_config *config,
+			   struct device_node **node)
+{
+	return NULL;
+}
+#endif
+
+enum regulator_get_type {
+	NORMAL_GET,
+	EXCLUSIVE_GET,
+	OPTIONAL_GET,
+	MAX_GET_TYPE
+};
+
+struct regulator *_regulator_get(struct device *dev, const char *id,
+				 enum regulator_get_type get_type);
+
 #endif

@@ -31,16 +31,10 @@ static const struct iio_chan_spec *xadc_event_to_channel(
 static void xadc_handle_event(struct iio_dev *indio_dev, unsigned int event)
 {
 	const struct iio_chan_spec *chan;
-	unsigned int offset;
 
 	/* Temperature threshold error, we don't handle this yet */
 	if (event == 0)
 		return;
-
-	if (event < 4)
-		offset = event;
-	else
-		offset = event + 4;
 
 	chan = xadc_event_to_channel(indio_dev, event);
 
@@ -52,7 +46,7 @@ static void xadc_handle_event(struct iio_dev *indio_dev, unsigned int event)
 		iio_push_event(indio_dev,
 			IIO_UNMOD_EVENT_CODE(chan->type, chan->channel,
 				IIO_EV_TYPE_THRESH, IIO_EV_DIR_RISING),
-			iio_get_time_ns());
+			iio_get_time_ns(indio_dev));
 	} else {
 		/*
 		 * For other channels we don't know whether it is a upper or
@@ -62,7 +56,7 @@ static void xadc_handle_event(struct iio_dev *indio_dev, unsigned int event)
 		iio_push_event(indio_dev,
 			IIO_UNMOD_EVENT_CODE(chan->type, chan->channel,
 				IIO_EV_TYPE_THRESH, IIO_EV_DIR_EITHER),
-			iio_get_time_ns());
+			iio_get_time_ns(indio_dev));
 	}
 }
 

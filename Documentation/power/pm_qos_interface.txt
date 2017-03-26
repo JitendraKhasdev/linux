@@ -5,7 +5,8 @@ performance expectations by drivers, subsystems and user space applications on
 one of the parameters.
 
 Two different PM QoS frameworks are available:
-1. PM QoS classes for cpu_dma_latency, network_latency, network_throughput.
+1. PM QoS classes for cpu_dma_latency, network_latency, network_throughput,
+memory_bandwidth.
 2. the per-device PM QoS framework provides the API to manage the per-device latency
 constraints and PM QoS flags.
 
@@ -13,6 +14,7 @@ Each parameters have defined units:
  * latency: usec
  * timeout: usec
  * throughput: kbs (kilo bit / sec)
+ * memory bandwidth: mbs (mega bit / sec)
 
 
 1. PM QoS framework
@@ -161,8 +163,7 @@ of flags and remove sysfs attributes pm_qos_no_power_off and pm_qos_remote_wakeu
 under the device's power directory.
 
 Notification mechanisms:
-The per-device PM QoS framework has 2 different and distinct notification trees:
-a per-device notification tree and a global notification tree.
+The per-device PM QoS framework has a per-device notification tree.
 
 int dev_pm_qos_add_notifier(device, notifier):
 Adds a notification callback function for the device.
@@ -171,16 +172,6 @@ is changed (for resume latency device PM QoS only).
 
 int dev_pm_qos_remove_notifier(device, notifier):
 Removes the notification callback function for the device.
-
-int dev_pm_qos_add_global_notifier(notifier):
-Adds a notification callback function in the global notification tree of the
-framework.
-The callback is called when the aggregated value for any device is changed
-(for resume latency device PM QoS only).
-
-int dev_pm_qos_remove_global_notifier(notifier):
-Removes the notification callback function from the global notification tree
-of the framework.
 
 
 Active state latency tolerance

@@ -309,9 +309,7 @@ static void cadet_handler(unsigned long data)
 	/*
 	 * Clean up and exit
 	 */
-	init_timer(&dev->readtimer);
-	dev->readtimer.function = cadet_handler;
-	dev->readtimer.data = data;
+	setup_timer(&dev->readtimer, cadet_handler, data);
 	dev->readtimer.expires = jiffies + msecs_to_jiffies(50);
 	add_timer(&dev->readtimer);
 }
@@ -320,9 +318,7 @@ static void cadet_start_rds(struct cadet *dev)
 {
 	dev->rdsstat = 1;
 	outb(0x80, dev->io);        /* Select RDS fifo */
-	init_timer(&dev->readtimer);
-	dev->readtimer.function = cadet_handler;
-	dev->readtimer.data = (unsigned long)dev;
+	setup_timer(&dev->readtimer, cadet_handler, (unsigned long)dev);
 	dev->readtimer.expires = jiffies + msecs_to_jiffies(50);
 	add_timer(&dev->readtimer);
 }
@@ -650,7 +646,6 @@ static int __init cadet_init(void)
 	dev->vdev.ioctl_ops = &cadet_ioctl_ops;
 	dev->vdev.release = video_device_release_empty;
 	dev->vdev.lock = &dev->lock;
-	set_bit(V4L2_FL_USE_FH_PRIO, &dev->vdev.flags);
 	video_set_drvdata(&dev->vdev, dev);
 
 	res = video_register_device(&dev->vdev, VFL_TYPE_RADIO, radio_nr);

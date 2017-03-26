@@ -19,6 +19,7 @@
 
 #include <linux/io.h>
 #include <linux/platform_data/gpio-omap.h>
+#include <linux/platform_data/hsmmc-omap.h>
 #include <linux/power/smartreflex.h>
 #include <linux/i2c-omap.h>
 
@@ -33,7 +34,6 @@
 #include "cm2_54xx.h"
 #include "prm54xx.h"
 #include "i2c.h"
-#include "mmc.h"
 #include "wd_timer.h"
 
 /* Base offset for all OMAP5 interrupts external to MPUSS */
@@ -288,6 +288,7 @@ static struct omap_hwmod omap54xx_dma_system_hwmod = {
 	.class		= &omap54xx_dma_hwmod_class,
 	.clkdm_name	= "dma_clkdm",
 	.mpu_irqs	= omap54xx_dma_system_irqs,
+	.xlate_irq	= omap4_xlate_irq,
 	.main_clk	= "l3_iclk_div",
 	.prcm = {
 		.omap4 = {
@@ -421,6 +422,7 @@ static struct omap_hwmod omap54xx_dss_dispc_hwmod = {
 	.opt_clks	= dss_dispc_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(dss_dispc_opt_clks),
 	.dev_attr	= &dss_dispc_dev_attr,
+	.parent_hwmod	= &omap54xx_dss_hwmod,
 };
 
 /*
@@ -462,6 +464,7 @@ static struct omap_hwmod omap54xx_dss_dsi1_a_hwmod = {
 	},
 	.opt_clks	= dss_dsi1_a_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(dss_dsi1_a_opt_clks),
+	.parent_hwmod	= &omap54xx_dss_hwmod,
 };
 
 /* dss_dsi1_c */
@@ -482,6 +485,7 @@ static struct omap_hwmod omap54xx_dss_dsi1_c_hwmod = {
 	},
 	.opt_clks	= dss_dsi1_c_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(dss_dsi1_c_opt_clks),
+	.parent_hwmod	= &omap54xx_dss_hwmod,
 };
 
 /*
@@ -521,6 +525,7 @@ static struct omap_hwmod omap54xx_dss_hdmi_hwmod = {
 	},
 	.opt_clks	= dss_hdmi_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(dss_hdmi_opt_clks),
+	.parent_hwmod	= &omap54xx_dss_hwmod,
 };
 
 /*
@@ -560,6 +565,7 @@ static struct omap_hwmod omap54xx_dss_rfbi_hwmod = {
 	},
 	.opt_clks	= dss_rfbi_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(dss_rfbi_opt_clks),
+	.parent_hwmod	= &omap54xx_dss_hwmod,
 };
 
 /*
@@ -1269,7 +1275,7 @@ static struct omap_hwmod_opt_clk mmc1_opt_clks[] = {
 };
 
 /* mmc1 dev_attr */
-static struct omap_mmc_dev_attr mmc1_dev_attr = {
+static struct omap_hsmmc_dev_attr mmc1_dev_attr = {
 	.flags	= OMAP_HSMMC_SUPPORTS_DUAL_VOLT,
 };
 
@@ -1742,6 +1748,7 @@ static struct omap_hwmod omap54xx_uart1_hwmod = {
 	.name		= "uart1",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
+	.flags		= HWMOD_SWSUP_SIDLE_ACT,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1757,6 +1764,7 @@ static struct omap_hwmod omap54xx_uart2_hwmod = {
 	.name		= "uart2",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
+	.flags		= HWMOD_SWSUP_SIDLE_ACT,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1772,7 +1780,7 @@ static struct omap_hwmod omap54xx_uart3_hwmod = {
 	.name		= "uart3",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
-	.flags		= DEBUG_OMAP4UART3_FLAGS,
+	.flags		= DEBUG_OMAP4UART3_FLAGS | HWMOD_SWSUP_SIDLE_ACT,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1788,7 +1796,7 @@ static struct omap_hwmod omap54xx_uart4_hwmod = {
 	.name		= "uart4",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
-	.flags		= DEBUG_OMAP4UART4_FLAGS,
+	.flags		= DEBUG_OMAP4UART4_FLAGS | HWMOD_SWSUP_SIDLE_ACT,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1804,6 +1812,7 @@ static struct omap_hwmod omap54xx_uart5_hwmod = {
 	.name		= "uart5",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
+	.flags		= HWMOD_SWSUP_SIDLE_ACT,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1819,6 +1828,7 @@ static struct omap_hwmod omap54xx_uart6_hwmod = {
 	.name		= "uart6",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
+	.flags		= HWMOD_SWSUP_SIDLE_ACT,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1838,8 +1848,7 @@ static struct omap_hwmod_class_sysconfig omap54xx_usb_host_hs_sysc = {
 	.rev_offs	= 0x0000,
 	.sysc_offs	= 0x0010,
 	.sysc_flags	= (SYSC_HAS_MIDLEMODE | SYSC_HAS_RESET_STATUS |
-			   SYSC_HAS_SIDLEMODE | SYSC_HAS_SOFTRESET |
-			   SYSC_HAS_RESET_STATUS),
+			   SYSC_HAS_SIDLEMODE | SYSC_HAS_SOFTRESET),
 	.idlemodes	= (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART |
 			   SIDLE_SMART_WKUP | MSTANDBY_FORCE | MSTANDBY_NO |
 			   MSTANDBY_SMART | MSTANDBY_SMART_WKUP),

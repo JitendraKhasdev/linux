@@ -468,7 +468,7 @@ static struct request *ace_get_next_request(struct request_queue *q)
 	struct request *req;
 
 	while ((req = blk_peek_request(q)) != NULL) {
-		if (req->cmd_type == REQ_TYPE_FS)
+		if (!blk_rq_is_passthrough(req))
 			break;
 		blk_start_request(req);
 		__blk_end_request_all(req, -EIO);
@@ -1203,7 +1203,6 @@ static struct platform_driver ace_platform_driver = {
 	.probe = ace_probe,
 	.remove = ace_remove,
 	.driver = {
-		.owner = THIS_MODULE,
 		.name = "xsysace",
 		.of_match_table = ace_of_match,
 	},

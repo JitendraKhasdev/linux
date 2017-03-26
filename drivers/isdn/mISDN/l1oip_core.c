@@ -234,6 +234,8 @@
 #include <linux/workqueue.h>
 #include <linux/kthread.h>
 #include <linux/slab.h>
+#include <linux/sched/signal.h>
+
 #include <net/sock.h>
 #include "core.h"
 #include "l1oip.h"
@@ -1334,7 +1336,7 @@ init_card(struct l1oip *hc, int pri, int bundle)
 	if (id[l1oip_cnt] == 0) {
 		printk(KERN_WARNING "Warning: No 'id' value given or "
 		       "0, this is highly unsecure. Please use 32 "
-		       "bit randmom number 0x...\n");
+		       "bit random number 0x...\n");
 	}
 	hc->id = id[l1oip_cnt];
 	if (debug & DEBUG_L1OIP_INIT)

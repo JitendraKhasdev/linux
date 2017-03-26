@@ -1,8 +1,5 @@
 /*
- * w1_netlink.c
- *
  * Copyright (c) 2003 Evgeniy Polyakov <zbr@ioremap.net>
- *
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,10 +10,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 #include <linux/slab.h>
@@ -598,7 +591,7 @@ static void w1_cn_callback(struct cn_msg *cn, struct netlink_skb_parms *nsp)
 	msg = (struct w1_netlink_msg *)(cn + 1);
 	if (node_count) {
 		int size;
-		u16 reply_size = sizeof(*cn) + cn->len + slave_len;
+		int reply_size = sizeof(*cn) + cn->len + slave_len;
 		if (cn->flags & W1_CN_BUNDLE) {
 			/* bundling duplicats some of the messages */
 			reply_size += 2 * cmd_count * (sizeof(struct cn_msg) +
@@ -680,8 +673,7 @@ static void w1_cn_callback(struct cn_msg *cn, struct netlink_skb_parms *nsp)
 			if (sl)
 				dev = sl->master;
 		} else {
-			printk(KERN_NOTICE
-				"%s: cn: %x.%x, wrong type: %u, len: %u.\n",
+			pr_notice("%s: cn: %x.%x, wrong type: %u, len: %u.\n",
 				__func__, cn->id.idx, cn->id.val,
 				msg->type, msg->len);
 			err = -EPROTO;
